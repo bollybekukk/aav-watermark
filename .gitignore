@@ -1,0 +1,10 @@
+# Personal photos stay local — only the site is published
+*.jpg
+*.jpeg
+*.heic
+*.heif
+*.webp
+*.png
+!watermark.png
+.DS_Store
+.claude/

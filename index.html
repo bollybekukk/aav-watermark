@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AAV Watermark</title>
+<meta name="description" content="Free watermark tool: frame overlays, text or logo marks, magic expand, pinch to position, flip and rotate. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Dancing+Script:wght@600&family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;700&family=Playfair+Display:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f3f0; --panel:#ffffff; --ink:#1a1a1c; --muted:#6c6c72; --line:#e5e2dc; --chip:#f1eee8;
+  --chip-on:#1a1a1c; --chip-on-ink:#fff; --accent:#b98a2e; --accent-ink:#fff; --stage:#e8e5df; --shadow:0 10px 30px rgba(0,0,0,.12);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#111113; --panel:#18181b; --ink:#f3f3f4; --muted:#9d9da6; --line:#2b2b30; --chip:#232328;
+    --chip-on:#f3f3f4; --chip-on-ink:#111; --accent:#d8a64a; --accent-ink:#151515; --stage:#0b0b0d; --shadow:0 10px 30px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111113; --panel:#18181b; --ink:#f3f3f4; --muted:#9d9da6; --line:#2b2b30; --chip:#232328;
+  --chip-on:#f3f3f4; --chip-on-ink:#111; --accent:#d8a64a; --accent-ink:#151515; --stage:#0b0b0d; --shadow:0 10px 30px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;height:100dvh;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+header{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.01em;margin-right:auto;white-space:nowrap}
+.brand svg{color:var(--accent)}
+.brand small{font-weight:500;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{background:var(--chip)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:18px;height:18px}
+
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 370px;min-height:0}
+.stagewrap{display:flex;flex-direction:column;min-height:0;min-width:0}
+.stage{flex:1;position:relative;background:var(--stage);min-height:0;overflow:hidden}
+#stageInner{position:absolute;inset:16px 16px 70px;display:flex;align-items:center;justify-content:center}
+#cv{display:block;touch-action:none;cursor:grab;box-shadow:var(--shadow);
+  background:repeating-conic-gradient(#d9d9d9 0 25%,#f5f5f5 0 50%) 0 0/16px 16px}
+#cv.grabbing{cursor:grabbing}
+.toolbar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px;box-shadow:var(--shadow);max-width:calc(100% - 24px);overflow-x:auto;scrollbar-width:none}
+.toolbar::-webkit-scrollbar{display:none}
+.ib{width:36px;height:36px;border-radius:999px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;flex:none;color:var(--ink)}
+.ib:hover{background:var(--chip)}
+.ib svg{width:19px;height:19px}
+.sep{width:1px;height:20px;background:var(--line);margin:0 3px;flex:none}
+#zoomLbl{min-width:52px;height:36px;border:0;background:transparent;font-weight:600;font-variant-numeric:tabular-nums;cursor:pointer;border-radius:999px}
+#zoomLbl:hover{background:var(--chip)}
+
+#empty{position:absolute;inset:0;display:grid;place-items:center;padding:16px}
+.dropcard{max-width:420px;width:100%;text-align:center;border:2px dashed var(--line);border-radius:20px;padding:36px 24px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.dropcard h2{margin:10px 0 4px;font-size:20px}
+.dropcard p{margin:0 0 18px;color:var(--muted)}
+.dropcard .fine{margin:16px 0 0;font-size:12px}
+.dropcard svg.big{width:44px;height:44px;color:var(--accent)}
+body.dragging .dropcard,body.dragging .stage{outline:3px solid var(--accent);outline-offset:-3px}
+
+#busy{position:absolute;inset:0;display:grid;place-items:center;background:color-mix(in srgb,var(--stage) 60%,transparent);z-index:5}
+.spin{width:36px;height:36px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.strip{display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line);flex:none}
+.thumb{position:relative;flex:none;width:56px;height:56px;border-radius:10px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:var(--chip);padding:0}
+.thumb.on{border-color:var(--accent)}
+.thumb canvas{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:18px;text-align:center}
+.thumb.add{display:grid;place-items:center;border:2px dashed var(--line);color:var(--muted);font-size:22px}
+
+aside.panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:none;background:var(--panel)}
+.tabs button{flex:1;border:0;background:transparent;padding:13px 4px 11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.tabbody{flex:1;overflow:auto;padding:4px 16px 24px}
+section.grp{padding:14px 0;border-bottom:1px solid var(--line)}
+section.grp:last-child{border-bottom:0}
+.gh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.gh h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field{margin:12px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.row label{font-weight:500}
+output{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+.note{color:var(--muted);font-size:12.5px;margin:8px 0 0}
+input[type=range]{width:100%;accent-color:var(--accent);height:22px;margin:0}
+textarea,select,input[type=text]{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 11px;outline:none}
+textarea:focus,select:focus,input[type=text]:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:44px}
+
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:500;font-size:13px}
+.seg button.on{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
+.seg.full{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+.seg.full button{border-radius:10px;padding:8px 6px}
+
+.switch{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.switch input{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;margin:0;transition:background .15s}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(16px)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border:1px solid var(--line);background:var(--chip);border-radius:12px;cursor:pointer;font-size:12px;font-weight:500}
+.tool:hover{border-color:var(--accent)}
+.tool svg{width:20px;height:20px}
+.tool.hero{grid-column:span 3;flex-direction:row;justify-content:center;gap:8px;font-size:13.5px;font-weight:600;background:color-mix(in srgb,var(--accent) 14%,var(--chip));border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+
+.posgrid{display:grid;grid-template-columns:repeat(3,34px);gap:4px}
+.posgrid button{width:34px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--chip);cursor:pointer;display:grid;place-items:center}
+.posgrid button::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.posgrid button:hover{border-color:var(--accent)}
+
+.swatches{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sw{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--bg);cursor:pointer}
+
+.ovprev{display:flex;gap:12px;align-items:center}
+.ovprev .pv{width:72px;height:72px;border-radius:10px;border:1px solid var(--line);flex:none;background:#555 center/contain no-repeat;
+  background-image:var(--img),repeating-conic-gradient(#6a6a6a 0 25%,#4a4a4a 0 50%);background-size:contain,12px 12px}
+.ovprev .acts{display:flex;flex-direction:column;gap:6px;flex:1}
+.info{display:flex;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--chip);margin:12px 0;font-size:13px}
+.info b{font-variant-numeric:tabular-nums}
+
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:500;transition:.2s;pointer-events:none;z-index:50;max-width:calc(100% - 32px);text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+
+@media (max-width:860px){
+  body{height:auto;min-height:100dvh;overflow:auto}
+  main{grid-template-columns:minmax(0,1fr)}
+  .stage{height:min(64vh,640px);flex:none}
+  #stageInner{inset:12px 12px 66px}
+  aside.panel{border-left:0;border-top:1px solid var(--line)}
+  .tabs{position:sticky;top:0;z-index:3}
+  .tabbody{overflow:visible}
+  .brand small{display:none}
+  header .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6.5"/><path d="M12 8.5l1.2 2.3 2.3 1.2-2.3 1.2L12 15.5l-1.2-2.3L8.5 12l2.3-1.2z" fill="currentColor" stroke="none"/></svg>
+    <span>AAV Watermark <small>· free, private, in your browser</small></span>
+  </div>
+  <button class="btn" id="btnAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="hide-sm">Add photos</span></button>
+  <button class="btn primary" id="btnDl" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>Download</button>
+</header>
+
+<main>
+  <div class="stagewrap">
+    <div class="stage" id="stage">
+      <div id="stageInner"><canvas id="cv" width="10" height="10" hidden></canvas></div>
+      <div id="empty">
+        <div class="dropcard">
+          <svg class="big" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>
+          <h2>Drop your photos here</h2>
+          <p>JPG, PNG, WebP or iPhone HEIC — add one or many</p>
+          <button class="btn primary" id="btnChoose">Choose photos</button>
+          <p class="note fine">Photos never leave your device. No sign-up, no limits.</p>
+        </div>
+      </div>
+      <div class="toolbar" id="toolbar" hidden>
+        <button class="ib" data-act="zoomOut" title="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button>
+        <button id="zoomLbl" data-act="fill" title="Fill frame">100%</button>
+        <button class="ib" data-act="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="sep"></span>
+        <button class="ib" data-act="fit" title="Magic expand: show the whole photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/></svg></button>
+        <button class="ib" data-act="center" title="Center photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+        <button class="ib" data-act="flipH" title="Flip horizontal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7zM16 7l5 5-5 5V7z"/></svg></button>
+        <button class="ib" data-act="flipV" title="Flip vertical"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M7 8l5-5 5 5H7zM7 16l5 5 5-5H7z"/></svg></button>
+        <button class="ib" data-act="rotR" title="Rotate 90°"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      </div>
+      <div id="busy" hidden><div class="spin"></div></div>
+    </div>
+    <div class="strip" id="strip" hidden></div>
+  </div>
+
+  <aside class="panel">
+    <nav class="tabs" id="tabs">
+      <button data-tab="wm" class="on">Watermark</button>
+      <button data-tab="frame">Expand</button>
+      <button data-tab="adj">Adjust</button>
+      <button data-tab="exp">Export</button>
+    </nav>
+    <div class="tabbody">
+      <!-- WATERMARK -->
+      <div data-pane="wm">
+        <section class="grp">
+          <div class="gh"><h3>Frame overlay</h3><label class="switch"><input type="checkbox" data-k="ov.on"></label></div>
+          <div data-show="_ov">
+            <div class="ovprev">
+              <div class="pv" id="ovPv"></div>
+              <div class="acts">
+                <button class="btn" data-act="ovUpload">Replace overlay</button>
+                <button class="btn" data-act="ovRemove">Remove</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="row"><label>Opacity</label><output data-for="ov.opacity" data-fmt="pct"></output></div>
+              <input type="range" min="0.05" max="1" step="0.01" data-k="ov.opacity">
+            </div>
+            <p class="note">Your overlay covers the whole picture. Drag or pinch the photo underneath to line it up.</p>
+          </div>
+          <div data-show="!_ov">
+            <button class="btn block" data-act="ovUpload">Upload overlay PNG</button>
+            <p class="note">A transparent PNG, such as a border with your logo, placed over the whole photo.</p>
+          </div>
+        </section>
+
+        <section class="grp">
+          <div class="gh"><h3>Text or logo</h3><label class="switch"><input type="checkbox" data-k="wm.on"></label></div>
+          <div data-show="wm.on">
+            <div class="seg full" data-k="wm.type"><button data-v="text">Text</button><button data-v="logo">Logo image</button></div>
+
+            <div data-show="wm.type=text">
+              <div class="field"><textarea rows="2" data-k="wm.text" placeholder="© Your name"></textarea></div>
+              <div class="field grid2">
+                <select data-k="wm.font">
+                  <option>Montserrat</option><option>Inter</option><option>Playfair Display</option>
+                  <option>Bebas Neue</option><option>Dancing Script</option><option>Roboto Mono</option><option>Georgia</option>
+                </select>
+                <label class="switch"><input type="checkbox" data-k="wm.bold"> Bold</label>
+              </div>
+              <div class="field swatches">
+                <button class="sw" style="background:#ffffff" data-color="#ffffff" title="White"></button>
+                <button class="sw" style="background:#111111" data-color="#111111" title="Black"></button>
+                <button class="sw" style="background:#d8b26a" data-color="#d8b26a" title="Gold"></button>
+                <button class="sw" style="background:#e5484d" data-color="#e5484d" title="Red"></button>
+                <input type="color" data-k="wm.color" title="Custom color">
+              </div>
+            </div>
+
+            <div data-show="wm.type=logo" class="field">
+              <div class="ovprev">
+                <div class="pv" id="logoPv"></div>
+                <div class="acts"><button class="btn" data-act="logoUpload">Choose logo</button>
+                <p class="note" style="margin:0">PNG with a transparent background works best.</p></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="row"><label>Size</label><output data-for="wm.size" data-fmt="pct"></output></div>
+              <input type="range" min="0.01" max="0.4" step="0.001" data-k="wm.size">
+            </div>
+            <div class="field">
+              <div class="row"><label>Opacity</label><output data-for="wm.opacity" data-fmt="pct"></output></div>
+              <input type="range" min="0.05" max="1" step="0.01" data-k="wm.opacity">
+            </div>
+            <div class="field">
+              <div class="row"><label>Rotation</label><output data-for="wm.angle" data-fmt="deg"></output></div>
+              <input type="range" min="-180" max="180" step="1" data-k="wm.angle">
+            </div>
+            <div class="field"><label class="switch"><input type="checkbox" data-k="wm.shadow"> Soft shadow (readable on any photo)</label></div>
+            <div class="field"><label class="switch"><input type="checkbox" data-k="wm.tile"> Repeat across the whole photo</label></div>
+            <div class="field" data-show="wm.tile">
+              <div class="row"><label>Spacing</label><output data-for="wm.gap" data-fmt="x"></output></div>
+              <input type="range" min="0.2" max="4" step="0.05" data-k="wm.gap">
+            </div>
+            <div class="field" data-show="!wm.tile">
+              <div class="row"><label>Quick position</label></div>
+              <div style="display:flex;gap:14px;align-items:center">
+                <div class="posgrid" id="posgrid"></div>
+                <p class="note" style="margin:0">Or drag it on the photo. Pinch or scroll over it to resize.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- FRAME / EXPAND -->
+      <div data-pane="frame" hidden>
+        <section class="grp">
+          <div class="gh"><h3>Picture shape</h3></div>
+          <div class="seg" data-k="aspect">
+            <button data-v="overlay" data-show="_ov">Overlay</button>
+            <button data-v="orig">Original</button>
+            <button data-v="1:1">1:1</button>
+            <button data-v="4:5">4:5</button>
+            <button data-v="3:4">3:4</button>
+            <button data-v="9:16">9:16</button>
+            <button data-v="16:9">16:9</button>
+            <button data-v="3:2">3:2</button>
+          </div>
+        </section>
+        <section class="grp">
+          <div class="gh"><h3>Position photo</h3></div>
+          <div class="grid3">
+            <button class="tool hero" data-act="fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/></svg>Magic expand: fit the whole photo</button>
+            <button class="tool" data-act="fill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M16 3v18" opacity=".4"/></svg>Fill frame</button>
+            <button class="tool" data-act="center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Center</button>
+            <button class="tool" data-act="rotR"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Rotate</button>
+            <button class="tool" data-act="flipH"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7zM16 7l5 5-5 5V7z"/></svg>Flip ↔</button>
+            <button class="tool" data-act="flipV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M7 8l5-5 5 5H7zM7 16l5 5 5-5H7z"/></svg>Flip ↕</button>
+            <button class="tool" data-act="resetPhoto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5"/></svg>Reset</button>
+          </div>
+          <div class="field">
+            <div class="row"><label>Zoom</label><output id="zoomOut"></output></div>
+            <input type="range" id="zoomRange" min="-2.3" max="2" step="0.005">
+          </div>
+          <p class="note">On the photo: drag to move, pinch or scroll to zoom, double-tap to center.</p>
+        </section>
+        <section class="grp">
+          <div class="gh"><h3>Magic expand fill</h3></div>
+          <div class="seg full" data-k="fill">
+            <button data-v="blur">Blur</button><button data-v="mirror">Mirror</button><button data-v="color">Color</button><button data-v="transparent">None</button>
+          </div>
+          <div class="field" data-show="fill=blur">
+            <div class="row"><label>Blur strength</label><output data-for="blur" data-fmt="int"></output></div>
+            <input type="range" min="0" max="100" step="1" data-k="blur">
+          </div>
+          <div class="field swatches" data-show="fill=color">
+            <input type="color" data-k="fillColor">
+            <button class="btn" data-act="autoColor">Match photo</button>
+            <button class="sw" style="background:#ffffff" data-fill="#ffffff" title="White"></button>
+            <button class="sw" style="background:#000000" data-fill="#000000" title="Black"></button>
+          </div>
+          <p class="note">When you zoom out or change the shape, empty space is filled from the photo itself. It's free and runs on your device.</p>
+        </section>
+      </div>
+
+      <!-- ADJUST -->
+      <div data-pane="adj" hidden>
+        <section class="grp">
+          <div class="gh"><h3>Looks</h3><button class="btn" data-act="adjReset" style="height:30px">Reset</button></div>
+          <div class="seg">
+            <button data-preset="none">Original</button><button data-preset="vivid">Vivid</button><button data-preset="bright">Bright</button>
+            <button data-preset="warm">Warm</button><button data-preset="cool">Cool</button><button data-preset="fade">Fade</button><button data-preset="bw">B&amp;W</button>
+          </div>
+        </section>
+        <section class="grp">
+          <div class="field"><div class="row"><label>Brightness</label><output data-for="adj.b" data-fmt="rel"></output></div><input type="range" min="50" max="150" step="1" data-k="adj.b"></div>
+          <div class="field"><div class="row"><label>Contrast</label><output data-for="adj.c" data-fmt="rel"></output></div><input type="range" min="50" max="150" step="1" data-k="adj.c"></div>
+          <div class="field"><div class="row"><label>Saturation</label><output data-for="adj.s" data-fmt="rel"></output></div><input type="range" min="0" max="200" step="1" data-k="adj.s"></div>
+          <div class="field"><div class="row"><label>Warmth</label><output data-for="adj.w" data-fmt="int"></output></div><input type="range" min="-100" max="100" step="1" data-k="adj.w"></div>
+        </section>
+      </div>
+
+      <!-- EXPORT -->
+      <div data-pane="exp" hidden>
+        <section class="grp">
+          <div class="gh"><h3>Format</h3></div>
+          <div class="seg full" data-k="exp.fmt"><button data-v="image/jpeg">JPG</button><button data-v="image/png">PNG</button><button data-v="image/webp">WebP</button></div>
+          <div class="field" data-show="!exp.fmt=image/png">
+            <div class="row"><label>Quality</label><output data-for="exp.q" data-fmt="pct"></output></div>
+            <input type="range" min="0.5" max="1" step="0.01" data-k="exp.q">
+          </div>
+          <div class="field">
+            <div class="row"><label>Size</label></div>
+            <select data-k="exp.max" data-num>
+              <option value="0">Full quality</option>
+              <option value="2048">2048 px</option>
+              <option value="1620">1620 px</option>
+              <option value="1080">1080 px (Instagram)</option>
+            </select>
+          </div>
+          <div class="info"><span>Output</span><b id="outInfo">—</b></div>
+          <div style="display:grid;gap:8px">
+            <button class="btn primary block" data-act="download">Download this photo</button>
+            <button class="btn block" data-act="downloadAll" data-show="_multi">Download all (<span id="allCount">0</span>)</button>
+            <button class="btn block" data-act="share" id="btnShare" hidden>Share / Save to Photos</button>
+          </div>
+          <p class="note">Your watermark, shape, fill and looks apply to every photo. Each photo keeps its own position, zoom and flip.</p>
+        </section>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<input type="file" id="fPhotos" accept="image/*,.heic,.heif" multiple hidden>
+<input type="file" id="fOverlay" accept="image/png,image/webp,image/*" hidden>
+<input type="file" id="fLogo" accept="image/*" hidden>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
+const FILTER_OK = (() => { try { const g = mk(1,1).getContext('2d'); g.filter = 'blur(1px)'; return g.filter === 'blur(1px)'; } catch (e) { return false; } })();
+const MAX_AREA = 16e6, MAX_SIDE = 8192, PREV_SIDE = 2000;
+const ASPECTS = { orig: null, '1:1': 1, '4:5': 4/5, '3:4': 3/4, '9:16': 9/16, '16:9': 16/9, '3:2': 3/2 };
+const ZMIN = 0.1, ZMAX = 8;
+
+const cv = $('#cv'), ctx = cv.getContext('2d'), inner = $('#stageInner');
+
+const S = {
+  aspect: 'orig', fill: 'blur', fillColor: '#000000', blur: 60,
+  adj: { b: 100, c: 100, s: 100, w: 0 },
+  ov: { on: true, opacity: 1 },
+  wm: { on: true, type: 'text', text: '© AAV', font: 'Montserrat', bold: true, color: '#ffffff', opacity: 0.75,
+        size: 0.05, angle: 0, x: 0.5, y: 0.93, tile: false, gap: 1.2, shadow: true },
+  exp: { fmt: 'image/jpeg', q: 0.92, max: 0 }
+};
+let photos = [], cur = null, idSeq = 0, procVer = 0;
+let ovImg = null, ovData = null, logoImg = null, logoData = null;
+let wmBox = null; const guides = { v: false, h: false };
+
+/* ---------- geometry ---------- */
+function dims(p = cur) { return p.t.rot % 2 ? { iw: p.IH, ih: p.IW } : { iw: p.IW, ih: p.IH }; }
+function aspectVal() {
+  if (S.aspect === 'overlay') return ovImg ? ovImg.width / ovImg.height : null;
+  return ASPECTS[S.aspect] ?? null;
+}
+function frame(p = cur) {
+  const { iw, ih } = dims(p), a = aspectVal();
+  let W = iw, H = ih;
+  if (a) { if (iw / ih > a) H = iw / a; else W = ih * a; }
+  return { W, H, iw, ih };
+}
+const coverZoom = (p = cur) => { const f = frame(p); return Math.max(f.W / f.iw, f.H / f.ih); };
+const fitZoom = (p = cur) => { const f = frame(p); return Math.min(f.W / f.iw, f.H / f.ih); };
+function place(g, p, cx, cy, s) {
+  g.translate(cx, cy);
+  g.scale(p.t.flipH ? -1 : 1, p.t.flipV ? -1 : 1);
+  g.rotate(p.t.rot * Math.PI / 2);
+  g.scale(s, s);
+}
+
+/* ---------- image processing ---------- */
+function processInto(c) {
+  const a = S.adj;
+  if (a.b === 100 && a.c === 100 && a.s === 100 && a.w === 0) return c;
+  const o = mk(c.width, c.height), g = o.getContext('2d');
+  if (FILTER_OK) {
+    g.filter = `brightness(${a.b}%) contrast(${a.c}%) saturate(${a.s}%)`;
+    g.drawImage(c, 0, 0); g.filter = 'none';
+  } else {
+    g.drawImage(c, 0, 0);
+    if (a.b !== 100 || a.c !== 100 || a.s !== 100) {
+      const id = g.getImageData(0, 0, o.width, o.height), d = id.data;
+      const B = a.b / 100, C = a.c / 100, s = a.s / 100;
+      const m = [.213+.787*s, .715-.715*s, .072-.072*s, .213-.213*s, .715+.285*s, .072-.072*s, .213-.213*s, .715-.715*s, .072+.928*s];
+      for (let i = 0; i < d.length; i += 4) {
+        const r = (d[i]*B - 127.5)*C + 127.5, gg = (d[i+1]*B - 127.5)*C + 127.5, b = (d[i+2]*B - 127.5)*C + 127.5;
+        d[i] = m[0]*r + m[1]*gg + m[2]*b; d[i+1] = m[3]*r + m[4]*gg + m[5]*b; d[i+2] = m[6]*r + m[7]*gg + m[8]*b;
+      }
+      g.putImageData(id, 0, 0);
+    }
+  }
+  if (a.w) {
+    g.globalCompositeOperation = 'soft-light';
+    g.globalAlpha = Math.abs(a.w) / 100 * 0.6;
+    g.fillStyle = a.w > 0 ? '#ff8a1e' : '#1e8aff';
+    g.fillRect(0, 0, o.width, o.height);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  }
+  return o;
+}
+function getProc(p) { if (p.procVer !== procVer) { p.proc = processInto(p.prev); p.procVer = procVer; } return p.proc; }
+function down(c, s) { const o = mk(c.width * s, c.height * s), g = o.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, o.width, o.height); return o; }
+function avgColor(c) {
+  const t = mk(1, 1), g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 1, 1);
+  const d = g.getImageData(0, 0, 1, 1).data;
+  return '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+/* ---------- rendering ---------- */
+let bgC = { key: '', c: null };
+function blurBg(p, src, W, H, k, preview) {
+  const ow = Math.round(W * k), oh = Math.round(H * k);
+  const key = [p.id, ow, oh, p.t.flipH, p.t.flipV, p.t.rot, S.blur, procVer, S.aspect].join('|');
+  if (preview && bgC.key === key) return bgC.c;
+  const { iw, ih } = dims(p), cover = Math.max(W / iw, H / ih) * 1.1, r = S.blur / 100;
+  const div = FILTER_OK ? 4 : 3 + r * 40;
+  const m = mk(ow / div, oh / div), mg = m.getContext('2d'), ks = m.width / W;
+  mg.imageSmoothingQuality = 'high';
+  mg.setTransform(ks, 0, 0, ks, 0, 0); place(mg, p, W / 2, H / 2, cover);
+  mg.drawImage(src, -p.IW / 2, -p.IH / 2, p.IW, p.IH);
+  const out = mk(ow, oh), og = out.getContext('2d'); og.imageSmoothingQuality = 'high';
+  if (FILTER_OK) {
+    const rad = Math.max(1, r * 0.05 * Math.max(ow, oh)), pad = rad * 2;
+    og.filter = `blur(${rad}px)`; og.drawImage(m, -pad, -pad, ow + 2 * pad, oh + 2 * pad); og.filter = 'none';
+  } else {
+    let c = m;
+    while (c.width * 2 < ow) { const n = mk(c.width * 2, c.height * 2), ng = n.getContext('2d'); ng.imageSmoothingQuality = 'high'; ng.drawImage(c, 0, 0, n.width, n.height); c = n; }
+    og.drawImage(c, 0, 0, ow, oh);
+  }
+  og.fillStyle = 'rgba(0,0,0,.1)'; og.fillRect(0, 0, ow, oh);
+  if (preview) bgC = { key, c: out };
+  return out;
+}
+function drawMirror(g, p, src, cx, cy, s, W, H) {
+  const { iw, ih } = dims(p);
+  const n = Math.min(6, Math.ceil(Math.max(W, H) / (Math.min(iw, ih) * s)) + 1);
+  g.save(); place(g, p, cx, cy, s);
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+    if (!i && !j) continue;
+    g.save(); g.translate(i * p.IW, j * p.IH); g.scale(i % 2 ? -1 : 1, j % 2 ? -1 : 1);
+    g.drawImage(src, -p.IW / 2, -p.IH / 2, p.IW, p.IH); g.restore();
+  }
+  g.restore();
+}
+const fontStr = fs => `${S.wm.bold ? 700 : 400} ${fs}px "${S.wm.font}", sans-serif`;
+function wmMetrics(g, W, H) {
+  const wm = S.wm, base = Math.min(W, H);
+  if (wm.type === 'logo') { if (!logoImg) return null; const w = wm.size * base * 3; return { w, h: w * logoImg.height / logoImg.width }; }
+  if (!wm.text.trim()) return null;
+  const fs = wm.size * base; g.font = fontStr(fs);
+  const lines = wm.text.split('\n');
+  return { w: Math.max(...lines.map(l => g.measureText(l).width)), h: fs * 1.2 * lines.length, fs, lines };
+}
+function drawItem(g, m) {
+  if (S.wm.type === 'logo') { g.drawImage(logoImg, -m.w / 2, -m.h / 2, m.w, m.h); return; }
+  g.fillStyle = S.wm.color; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const n = m.lines.length;
+  m.lines.forEach((l, i) => g.fillText(l, 0, (i - (n - 1) / 2) * m.fs * 1.2));
+}
+function drawWM(g, W, H, k) {
+  const wm = S.wm; g.save();
+  const m = wmMetrics(g, W, H);
+  if (!m) { g.restore(); wmBox = null; return; }
+  g.globalAlpha = wm.opacity;
+  if (wm.shadow) { const u = Math.min(m.w, m.h); g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = u * 0.15 * k; g.shadowOffsetY = u * 0.03 * k; }
+  const a = wm.angle * Math.PI / 180;
+  if (wm.tile) {
+    g.translate(W / 2, H / 2); g.rotate(a);
+    let sx = m.w * (1 + wm.gap), sy = m.h * (1 + wm.gap * 1.6);
+    const R = Math.hypot(W, H) / 2, cnt = (2 * R / sx) * (2 * R / sy);
+    if (cnt > 1500) { const f = Math.sqrt(cnt / 1500); sx *= f; sy *= f; }
+    let row = 0;
+    for (let y = -R - sy; y <= R + sy; y += sy, row++) {
+      const off = (row % 2) * sx / 2;
+      for (let x = -R - sx + off; x <= R + sx; x += sx) { g.save(); g.translate(x, y); drawItem(g, m); g.restore(); }
+    }
+    wmBox = null;
+  } else {
+    const x = wm.x * W, y = wm.y * H;
+    g.translate(x, y); g.rotate(a); drawItem(g, m);
+    wmBox = { x, y, w: m.w, h: m.h, a };
+  }
+  g.restore();
+}
+function render(g, k, p, src, preview) {
+  const { W, H } = frame(p), t = p.t;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, g.canvas.width, g.canvas.height);
+  g.setTransform(k, 0, 0, k, 0, 0);
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  const cx = W / 2 + t.ox * W, cy = H / 2 + t.oy * H, s = t.zoom;
+  if (S.fill === 'color') { g.fillStyle = S.fillColor; g.fillRect(0, 0, W, H); }
+  else if (S.fill === 'blur') g.drawImage(blurBg(p, src, W, H, k, preview), 0, 0, W, H);
+  else if (S.fill === 'mirror') drawMirror(g, p, src, cx, cy, s, W, H);
+  g.save(); place(g, p, cx, cy, s); g.drawImage(src, -p.IW / 2, -p.IH / 2, p.IW, p.IH); g.restore();
+  if (S.ov.on && ovImg) { g.save(); g.globalAlpha = S.ov.opacity; g.drawImage(ovImg, 0, 0, W, H); g.restore(); }
+  if (S.wm.on) drawWM(g, W, H, k); else wmBox = null;
+  if (preview && (guides.v || guides.h)) {
+    g.save(); g.strokeStyle = '#ff3d7f'; g.lineWidth = 2 / k; g.setLineDash([8 / k, 6 / k]);
+    g.beginPath();
+    if (guides.v) { g.moveTo(W / 2, 0); g.lineTo(W / 2, H); }
+    if (guides.h) { g.moveTo(0, H / 2); g.lineTo(W, H / 2); }
+    g.stroke(); g.restore();
+  }
+}
+function sizeCanvas() {
+  const { W, H } = frame(), bw = inner.clientWidth, bh = inner.clientHeight;
+  const cs = Math.min(bw / W, bh / H), dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.style.width = W * cs + 'px'; cv.style.height = H * cs + 'px';
+  const k = cs * dpr, pw = Math.round(W * k), ph = Math.round(H * k);
+  if (cv.width !== pw) cv.width = pw;
+  if (cv.height !== ph) cv.height = ph;
+  return k;
+}
+let raf = 0;
+function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
+function draw() {
+  if (!cur) return;
+  const k = sizeCanvas();
+  render(ctx, k, cur, getProc(cur), true);
+  updateLive();
+}
+new ResizeObserver(schedule).observe(inner);
+
+/* ---------- export ---------- */
+function outScale(p) {
+  const { W, H } = frame(p);
+  const lim = Math.min(Math.sqrt(MAX_AREA / (W * H)), MAX_SIDE / Math.max(W, H));
+  return S.exp.max ? Math.min(lim, S.exp.max / Math.max(W, H)) : Math.min(1, lim);
+}
+async function fullRaw(p) {
+  const im = await loadImg(URL.createObjectURL(p.src));
+  const c = mk(p.IW, p.IH), g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+  g.drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(im.src);
+  return c;
+}
+async function exportPhoto(p) {
+  const src = processInto(await fullRaw(p));
+  const { W, H } = frame(p), k = outScale(p);
+  const c = mk(W * k, H * k), saved = wmBox;
+  render(c.getContext('2d'), k, p, src, false);
+  wmBox = saved;
+  let type = S.exp.fmt;
+  if (S.fill === 'transparent' && type === 'image/jpeg') type = 'image/png';
+  const blob = await new Promise(r => c.toBlob(r, type, S.exp.q));
+  if (!blob) throw new Error('Export failed');
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[blob.type] || 'png';
+  return new File([blob], `${p.name}-watermark.${ext}`, { type: blob.type });
+}
+function downloadFile(f) {
+  const url = URL.createObjectURL(f), a = document.createElement('a');
+  a.href = url; a.download = f.name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+}
+
+/* ---------- loading ---------- */
+function loadImg(url) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('decode')); im.src = url; }); }
+let heicLib = null;
+function loadHeicLib() {
+  return heicLib ||= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+    s.onload = res; s.onerror = () => { heicLib = null; rej(new Error('heic lib')); };
+    document.head.append(s);
+  });
+}
+async function decode(f) {
+  const isHeic = /hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+  try { return { im: await loadImg(URL.createObjectURL(f)), blob: f }; }
+  catch (e) { if (!isHeic) throw e; }
+  await loadHeicLib();
+  let b = await window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.95 });
+  if (Array.isArray(b)) b = b[0];
+  return { im: await loadImg(URL.createObjectURL(b)), blob: b };
+}
+async function makePhoto(f) {
+  const { im, blob } = await decode(f);
+  const w = im.naturalWidth, h = im.naturalHeight;
+  const sc = Math.min(1, Math.sqrt(MAX_AREA / (w * h)), MAX_SIDE / Math.max(w, h));
+  const IW = Math.round(w * sc), IH = Math.round(h * sc);
+  const ps = Math.min(1, PREV_SIDE / Math.max(IW, IH));
+  const prev = mk(IW * ps, IH * ps), g = prev.getContext('2d'); g.imageSmoothingQuality = 'high';
+  g.drawImage(im, 0, 0, prev.width, prev.height);
+  URL.revokeObjectURL(im.src);
+  const p = { id: ++idSeq, name: (f.name || 'photo').replace(/\.[^.]+$/, '') || 'photo', src: blob, prev, IW, IH, procVer: -1,
+              t: { zoom: 1, ox: 0, oy: 0, flipH: false, flipV: false, rot: 0 } };
+  p.thumb = down(prev, 112 / Math.max(prev.width, prev.height));
+  p.avg = avgColor(prev);
+  p.t.zoom = coverZoom(p);
+  return p;
+}
+async function addFiles(list) {
+  const files = [...list].filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp|gif|avif)$/i.test(f.name));
+  if (!files.length) return toast('Please choose an image file');
+  busy(true);
+  let first = null;
+  for (const f of files) {
+    try { const p = await makePhoto(f); photos.push(p); first ||= p; }
+    catch (e) { console.error(e); toast(`Couldn't open ${f.name}`); }
+  }
+  busy(false);
+  if (first) { if (S.fill === 'color' && !cur) S.fillColor = first.avg; select(first); }
+}
+function select(p) {
+  cur = p; bgC.key = '';
+  $('#empty').hidden = !!p; cv.hidden = !p; $('#toolbar').hidden = !p;
+  renderStrip(); sync(); schedule();
+}
+function removePhoto(p) {
+  const i = photos.indexOf(p); if (i < 0) return;
+  photos.splice(i, 1);
+  if (cur === p) select(photos[Math.min(i, photos.length - 1)] || null); else renderStrip();
+  if (!photos.length) sync();
+}
+function renderStrip() {
+  const st = $('#strip'); st.innerHTML = '';
+  st.hidden = !photos.length;
+  photos.forEach(p => {
+    const b = document.createElement('button'); b.className = 'thumb' + (p === cur ? ' on' : ''); b.title = p.name;
+    b.append(p.thumb);
+    const x = document.createElement('span'); x.className = 'x'; x.textContent = '×'; x.title = 'Remove';
+    x.onclick = e => { e.stopPropagation(); removePhoto(p); };
+    b.append(x); b.onclick = () => select(p); st.append(b);
+  });
+  const add = document.createElement('button'); add.className = 'thumb add'; add.textContent = '+'; add.title = 'Add photos';
+  add.onclick = () => $('#fPhotos').click(); st.append(add);
+}
+async function setOverlay(dataUrl, first) {
+  if (!dataUrl) { ovImg = null; ovData = null; if (S.aspect === 'overlay') S.aspect = 'orig'; refreshAfterShape(); return; }
+  ovImg = await loadImg(dataUrl); ovData = dataUrl.startsWith('data:') ? dataUrl : null;
+  $('#ovPv').style.setProperty('--img', `url("${dataUrl}")`);
+  if (first) { S.aspect = 'overlay'; S.ov.on = true; }
+  refreshAfterShape();
+}
+async function setLogo(dataUrl) {
+  logoImg = dataUrl ? await loadImg(dataUrl) : null; logoData = dataUrl || null;
+  if (dataUrl) $('#logoPv').style.setProperty('--img', `url("${dataUrl}")`);
+  sync(); schedule();
+}
+const readURL = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+function refreshAfterShape() {
+  photos.forEach(p => { p.t.zoom = coverZoom(p); p.t.ox = p.t.oy = 0; });
+  bgC.key = ''; save(); sync(); schedule();
+}
+
+/* ---------- pointer: drag / pinch ---------- */
+const P = new Map(); let G = null;
+function pt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, cw: r.width, ch: r.height }; }
+function hitWM(p) {
+  if (!S.wm.on || S.wm.tile || !wmBox || !cur) return false;
+  const { W, H } = frame(), fx = p.x / p.cw * W, fy = p.y / p.ch * H;
+  const dx = fx - wmBox.x, dy = fy - wmBox.y, a = -wmBox.a;
+  const rx = dx * Math.cos(a) - dy * Math.sin(a), ry = dx * Math.sin(a) + dy * Math.cos(a);
+  const pad = Math.min(W, H) * 0.025;
+  return Math.abs(rx) < wmBox.w / 2 + pad && Math.abs(ry) < wmBox.h / 2 + pad;
+}
+const centroid = a => ({ x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length });
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function begin() {
+  const pts = [...P.values()];
+  if (!pts.length) { G = null; guides.v = guides.h = false; cv.classList.remove('grabbing'); save(); schedule(); return; }
+  const target = G ? G.target : (hitWM(pts[0]) ? 'wm' : 'photo');
+  G = { target, c0: centroid(pts), d0: pts.length > 1 ? dist(pts[0], pts[1]) : 0,
+        ox: cur.t.ox, oy: cur.t.oy, zoom: cur.t.zoom, wx: S.wm.x, wy: S.wm.y, ws: S.wm.size };
+}
+cv.addEventListener('pointerdown', e => {
+  if (!cur) return;
+  cv.setPointerCapture(e.pointerId); P.set(e.pointerId, pt(e)); cv.classList.add('grabbing'); begin();
+});
+cv.addEventListener('pointermove', e => {
+  if (!P.has(e.pointerId) || !G) {
+    if (cur && e.pointerType === 'mouse') cv.style.cursor = hitWM(pt(e)) ? 'move' : '';
+    return;
+  }
+  P.set(e.pointerId, pt(e));
+  const pts = [...P.values()], c = centroid(pts), { cw, ch } = pts[0];
+  const ratio = pts.length > 1 && G.d0 > 0 ? dist(pts[0], pts[1]) / G.d0 : 1;
+  if (G.target === 'photo') {
+    const z = clamp(G.zoom * ratio, ZMIN, ZMAX), r = z / G.zoom;
+    const m0x = G.c0.x / cw - .5, m0y = G.c0.y / ch - .5, m1x = c.x / cw - .5, m1y = c.y / ch - .5;
+    let ox = m1x - (m0x - G.ox) * r, oy = m1y - (m0y - G.oy) * r;
+    guides.v = Math.abs(ox) < 0.01; guides.h = Math.abs(oy) < 0.01;
+    if (guides.v) ox = 0; if (guides.h) oy = 0;
+    cur.t.zoom = z; cur.t.ox = ox; cur.t.oy = oy;
+  } else {
+    let x = clamp(G.wx + (c.x - G.c0.x) / cw, 0, 1), y = clamp(G.wy + (c.y - G.c0.y) / ch, 0, 1);
+    guides.v = Math.abs(x - .5) < 0.01; guides.h = Math.abs(y - .5) < 0.01;
+    if (guides.v) x = .5; if (guides.h) y = .5;
+    S.wm.x = x; S.wm.y = y; S.wm.size = clamp(G.ws * ratio, 0.01, 0.4);
+  }
+  sync(); schedule();
+});
+const endPtr = e => { if (P.delete(e.pointerId)) begin(); };
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('dblclick', () => act('center'));
+cv.addEventListener('wheel', e => {
+  if (!cur) return; e.preventDefault();
+  const p = pt(e), f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+  if (hitWM(p)) S.wm.size = clamp(S.wm.size * f, 0.01, 0.4);
+  else zoomAt(cur.t.zoom * f, p.x / p.cw - .5, p.y / p.ch - .5);
+  sync(); schedule(); save();
+}, { passive: false });
+function zoomAt(z, mx = 0, my = 0) {
+  z = clamp(z, ZMIN, ZMAX); const r = z / cur.t.zoom;
+  cur.t.ox = mx - (mx - cur.t.ox) * r; cur.t.oy = my - (my - cur.t.oy) * r; cur.t.zoom = z;
+}
+
+/* ---------- actions ---------- */
+const PRESETS = {
+  none: { b: 100, c: 100, s: 100, w: 0 }, vivid: { b: 103, c: 112, s: 135, w: 5 }, bright: { b: 115, c: 104, s: 108, w: 0 },
+  warm: { b: 103, c: 104, s: 108, w: 40 }, cool: { b: 102, c: 104, s: 95, w: -40 }, fade: { b: 108, c: 82, s: 78, w: 8 },
+  bw: { b: 102, c: 118, s: 0, w: 0 }
+};
+async function act(a) {
+  const needPhoto = ['zoomIn','zoomOut','fit','fill','center','flipH','flipV','rotR','resetPhoto','autoColor','download','downloadAll','share'];
+  if (needPhoto.includes(a) && !cur) return toast('Add a photo first');
+  const t = cur && cur.t;
+  switch (a) {
+    case 'zoomIn': zoomAt(t.zoom * 1.15); break;
+    case 'zoomOut': zoomAt(t.zoom / 1.15); break;
+    case 'fit': t.zoom = fitZoom(); t.ox = t.oy = 0; break;
+    case 'fill': t.zoom = coverZoom(); t.ox = t.oy = 0; break;
+    case 'center': t.ox = t.oy = 0; break;
+    case 'flipH': t.flipH = !t.flipH; bgC.key = ''; break;
+    case 'flipV': t.flipV = !t.flipV; bgC.key = ''; break;
+    case 'rotR': t.rot = (t.rot + 1) % 4; t.zoom = coverZoom(); t.ox = t.oy = 0; bgC.key = ''; break;
+    case 'resetPhoto': Object.assign(t, { flipH: false, flipV: false, rot: 0, ox: 0, oy: 0 }); t.zoom = coverZoom(); bgC.key = ''; break;
+    case 'autoColor': S.fillColor = cur.avg; break;
+    case 'adjReset': S.adj = { ...PRESETS.none }; procVer++; break;
+    case 'ovUpload': $('#fOverlay').click(); return;
+    case 'ovRemove': await setOverlay(null); toast('Overlay removed'); break;
+    case 'logoUpload': $('#fLogo').click(); return;
+    case 'download': await withBusy(async () => { const f = await exportPhoto(cur); downloadFile(f); toast('Saved ' + f.name); }); return;
+    case 'downloadAll': await withBusy(async () => {
+      for (const p of photos) { downloadFile(await exportPhoto(p)); await new Promise(r => setTimeout(r, 500)); }
+      toast(`Saved ${photos.length} photos`);
+    }); return;
+    case 'share': await withBusy(async () => {
+      const f = await exportPhoto(cur);
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f] });
+        else { downloadFile(f); toast('Saved ' + f.name); }
+      } catch (e) { if (e.name !== 'AbortError') { downloadFile(f); toast('Sharing was blocked, so it was downloaded instead'); } }
+    }); return;
+  }
+  save(); sync(); schedule();
+}
+async function withBusy(fn) { busy(true); try { await fn(); } catch (e) { console.error(e); toast('Something went wrong: ' + e.message); } finally { busy(false); } }
+function busy(on) { $('#busy').hidden = !on; }
+let toastT;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ---------- state binding ---------- */
+function getK(k) {
+  if (k === '_ov') return !!ovImg;
+  if (k === '_logo') return !!logoImg;
+  if (k === '_multi') return photos.length > 1;
+  return k.split('.').reduce((o, p) => o == null ? o : o[p], S);
+}
+function setK(k, v) { const ps = k.split('.'), last = ps.pop(); ps.reduce((o, p) => o[p], S)[last] = v; }
+const FMT = {
+  pct: v => Math.round(v * 100) + '%', deg: v => Math.round(v) + '°', int: v => Math.round(v),
+  x: v => (+v).toFixed(1) + '×', rel: v => (v > 100 ? '+' : '') + Math.round(v - 100)
+};
+function sync() {
+  $$('[data-k]').forEach(el => {
+    const v = getK(el.dataset.k);
+    if (el.classList.contains('seg')) $$('button', el).forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
+    else if (el.type === 'checkbox') el.checked = !!v;
+    else if (document.activeElement !== el) el.value = v;
+  });
+  $$('output[data-for]').forEach(o => { o.textContent = (FMT[o.dataset.fmt] || String)(getK(o.dataset.for)); });
+  $$('[data-show]').forEach(el => {
+    let cond = el.dataset.show, neg = cond.startsWith('!'); if (neg) cond = cond.slice(1);
+    const [k, val] = cond.split('='), v = getK(k);
+    let ok = val === undefined ? !!v : String(v) === val; if (neg) ok = !ok;
+    el.hidden = !ok;
+  });
+  $('#btnDl').disabled = !cur;
+  $('#allCount').textContent = photos.length;
+  updateLive();
+}
+function updateLive() {
+  if (!cur) { $('#outInfo').textContent = '—'; return; }
+  const pct = Math.round(cur.t.zoom / coverZoom() * 100) + '%';
+  $('#zoomLbl').textContent = pct; $('#zoomOut').textContent = pct;
+  const zr = $('#zoomRange'); if (document.activeElement !== zr) zr.value = Math.log(cur.t.zoom / coverZoom());
+  const { W, H } = frame(), k = outScale(cur);
+  $('#outInfo').textContent = `${Math.round(W * k)} × ${Math.round(H * k)} px`;
+}
+$$('[data-k]').forEach(el => {
+  const k = el.dataset.k;
+  if (el.classList.contains('seg')) {
+    el.addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { setK(k, b.dataset.v); changed(k); } });
+  } else {
+    el.addEventListener('input', () => {
+      const v = el.type === 'checkbox' ? el.checked : (el.type === 'range' || 'num' in el.dataset) ? parseFloat(el.value) : el.value;
+      setK(k, v); changed(k);
+    });
+  }
+});
+function changed(k) {
+  if (k === 'aspect') return refreshAfterShape();
+  if (k.startsWith('adj.')) procVer++;
+  if (k === 'blur') bgC.key = '';
+  if (k === 'wm.font' || k === 'wm.bold') document.fonts.load(fontStr(40)).then(schedule, () => {});
+  if (k === 'wm.type' && S.wm.type === 'logo' && !logoImg) $('#fLogo').click();
+  if (k === 'wm.tile' && S.wm.tile && S.wm.angle === 0) S.wm.angle = -30;
+  if (k === 'wm.on' && S.wm.on && S.wm.type === 'text' && !S.wm.text.trim()) S.wm.text = '© AAV';
+  save(); sync(); schedule();
+}
+$('#zoomRange').addEventListener('input', e => { if (!cur) return; zoomAt(coverZoom() * Math.exp(+e.target.value)); sync(); schedule(); });
+$$('[data-act]').forEach(b => b.addEventListener('click', () => act(b.dataset.act)));
+$$('[data-preset]').forEach(b => b.addEventListener('click', () => { S.adj = { ...PRESETS[b.dataset.preset] }; procVer++; save(); sync(); schedule(); }));
+$$('[data-color]').forEach(b => b.addEventListener('click', () => { S.wm.color = b.dataset.color; save(); sync(); schedule(); }));
+$$('[data-fill]').forEach(b => b.addEventListener('click', () => { S.fillColor = b.dataset.fill; save(); sync(); schedule(); }));
+$$('#tabs button').forEach(b => b.addEventListener('click', () => {
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+}));
+// quick position grid
+const pg = $('#posgrid');
+for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+  const b = document.createElement('button'); b.title = ['Top','Middle','Bottom'][r] + ' ' + ['left','center','right'][c];
+  b.onclick = () => {
+    const base = cur ? frame() : { W: 1000, H: 1000 }, { W, H } = base;
+    const m = wmMetrics(ctx, W, H) || { w: 0, h: 0 }, mg = 0.04 * Math.min(W, H);
+    S.wm.x = c === 1 ? .5 : c === 0 ? (mg + m.w / 2) / W : 1 - (mg + m.w / 2) / W;
+    S.wm.y = r === 1 ? .5 : r === 0 ? (mg + m.h / 2) / H : 1 - (mg + m.h / 2) / H;
+    save(); sync(); schedule();
+  };
+  pg.append(b);
+}
+
+/* ---------- inputs, drop, paste, keys ---------- */
+$('#btnAdd').onclick = $('#btnChoose').onclick = () => $('#fPhotos').click();
+$('#btnDl').onclick = () => act('download');
+$('#fPhotos').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('#fOverlay').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { await setOverlay(await readURL(f), true); toast('Overlay added'); } catch (err) { toast("Couldn't open that overlay"); }
+};
+$('#fLogo').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) { if (!logoImg) { S.wm.type = 'text'; sync(); } return; }
+  try { S.wm.type = 'logo'; S.wm.on = true; await setLogo(await readURL(f)); save(); } catch (err) { toast("Couldn't open that logo"); }
+};
+let dragDepth = 0;
+addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) addFiles(fs); });
+addEventListener('keydown', e => {
+  if (!cur || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  const n = e.shiftKey ? 0.05 : 0.005, t = cur.t;
+  const map = { ArrowLeft: () => t.ox -= n, ArrowRight: () => t.ox += n, ArrowUp: () => t.oy -= n, ArrowDown: () => t.oy += n,
+                '+': () => zoomAt(t.zoom * 1.1), '=': () => zoomAt(t.zoom * 1.1), '-': () => zoomAt(t.zoom / 1.1) };
+  if (map[e.key]) { e.preventDefault(); map[e.key](); sync(); schedule(); }
+});
+if (navigator.share) $('#btnShare').hidden = false;
+
+/* ---------- persistence ---------- */
+const LS = 'aav-watermark.v1';
+let saveT;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    const st = { aspect: S.aspect, fill: S.fill, fillColor: S.fillColor, blur: S.blur, adj: S.adj, ov: S.ov, wm: S.wm, exp: S.exp };
+    try { localStorage.setItem(LS, JSON.stringify({ S: st, ovData, logoData, hasOv: !!ovImg })); }
+    catch (e) { try { localStorage.setItem(LS, JSON.stringify({ S: st, hasOv: !!ovImg })); } catch (_) {} }
+  }, 300);
+}
+async function boot() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) {}
+  if (saved && saved.S) {
+    const s = saved.S;
+    Object.assign(S, { aspect: s.aspect ?? S.aspect, fill: s.fill ?? S.fill, fillColor: s.fillColor ?? S.fillColor, blur: s.blur ?? S.blur });
+    Object.assign(S.adj, s.adj); Object.assign(S.ov, s.ov); Object.assign(S.wm, s.wm); Object.assign(S.exp, s.exp);
+    if (saved.logoData) await setLogo(saved.logoData).catch(() => {});
+    if (saved.ovData) await setOverlay(saved.ovData).catch(() => {});
+  }
+  if (S.wm.type === 'logo' && !logoImg) S.wm.type = 'text';
+  // Bundled default overlay (watermark.png next to this page), used until the user removes or replaces it.
+  if (!ovImg && location.protocol !== 'file:' && !(saved && saved.hasOv === false)) {
+    try {
+      await setOverlay('watermark.png', !saved);
+      if (!saved) S.wm.on = false;
+    } catch (e) {}
+  }
+  procVer++;
+  sync(); save();
+  document.fonts.load(fontStr(40)).then(schedule, () => {});
+}
+boot();
+window.AAV = { addFiles, S, get cur() { return cur; }, exportPhoto };
+})();
+</script>
+</body>
+</html>
